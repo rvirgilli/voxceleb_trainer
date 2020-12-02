@@ -6,38 +6,40 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import time, pdb, numpy, math
-from accuracy import accuracy
+from utils import accuracy
 
-class AAMSoftmax(nn.Module):
-    def __init__(self,
-                 in_feats,
-                 n_classes=10,
-                 m=0.3,
-                 s=15, 
-                 easy_margin=False):
-        super(AAMSoftmax, self).__init__()
-        self.m = m
-        self.s = s
-        self.in_feats = in_feats
-        self.weight = torch.nn.Parameter(torch.FloatTensor(n_classes, in_feats), requires_grad=True)
+class LossFunction(nn.Module):
+    def __init__(self, nOut, nClasses, margin=0.3, scale=15, easy_margin=False, **kwargs):
+        super(LossFunction, self).__init__()
+
+        self.test_normalize = True
+        
+        self.m = margin
+        self.s = scale
+        self.in_feats = nOut
+        self.weight = torch.nn.Parameter(torch.FloatTensor(nClasses, nOut), requires_grad=True)
         self.ce = nn.CrossEntropyLoss()
         nn.init.xavier_normal_(self.weight, gain=1)
 
         self.easy_margin = easy_margin
-        self.cos_m = math.cos(m)
-        self.sin_m = math.sin(m)
+        self.cos_m = math.cos(self.m)
+        self.sin_m = math.sin(self.m)
 
         # make the function cos(theta+m) monotonic decreasing while theta in [0°,180°]
-        self.th = math.cos(math.pi - m)
-        self.mm = math.sin(math.pi - m) * m
+        self.th = math.cos(math.pi - self.m)
+        self.mm = math.sin(math.pi - self.m) * self.m
 
-        print('Initialised AMSoftmax m=%.3f s=%.3f'%(self.m,self.s))
+        print('Initialised AAMSoftmax margin %.3f scale %.3f'%(self.m,self.s))
 
     def forward(self, x, label=None):
+
+        assert x.size()[0] == label.size()[0]
+        assert x.size()[1] == self.in_feats
+        
         # cos(theta)
         cosine = F.linear(F.normalize(x), F.normalize(self.weight))
         # cos(theta + m)
-        sine = torch.sqrt((1.0 - torch.pow(cosine, 2)).clamp(0, 1))
+        sine = torch.sqrt((1.0 - torch.mul(cosine, cosine)).clamp(0, 1))
         phi = cosine * self.cos_m - sine * self.sin_m
 
         if self.easy_margin:
@@ -51,6 +53,6 @@ class AAMSoftmax(nn.Module):
         output = (one_hot * phi) + ((1.0 - one_hot) * cosine)
         output = output * self.s
 
-        loss = self.ce(output, label)
-        prec1, _    = accuracy(output.detach().cpu(), label.detach().cpu(), topk=(1, 5))
+        loss    = self.ce(output, label)
+        prec1   = accuracy(output.detach(), label.detach(), topk=(1,))[0]
         return loss, prec1

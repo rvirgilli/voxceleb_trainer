@@ -4,6 +4,13 @@
 *.mp4
 *.pcm
 data/
+exps/
+core.*
+
+# NSML related
+.nsmlignore
+*.nsml.py
+setup.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
