@@ -31,7 +31,6 @@ class ResNetSE(nn.Module):
 
         self.instancenorm   = nn.InstanceNorm1d(n_mels)
         self.torchfb        = torchaudio.transforms.MelSpectrogram(sample_rate=16000, n_fft=512, win_length=400, hop_length=160, window_fn=torch.hamming_window, n_mels=n_mels)
-        self.spectrogram_booster = nn.Linear(n_mels, n_mels)
 
         if self.encoder_type == "SAP":
             self.sap_linear = nn.Linear(num_filters[3] * block.expansion, num_filters[3] * block.expansion)
@@ -83,7 +82,6 @@ class ResNetSE(nn.Module):
                 if self.log_input: x = x.log()
                 x = self.instancenorm(x).unsqueeze(1).detach()
 
-        x = torch.transpose(self.spectrogram_booster(torch.transpose(x, 2, 3)), 2, 3)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
