@@ -14,6 +14,7 @@ from SpeakerNet import *
 from DatasetLoader import get_data_loader
 import torch.distributed as dist
 import torch.multiprocessing as mp
+from torch.utils.tensorboard import SummaryWriter
 
 # ## ===== ===== ===== ===== ===== ===== ===== =====
 # ## Parse arguments
@@ -129,6 +130,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     ## Write args to scorefile
     scorefile   = open(args.result_save_path+"/scores.txt", "a+");
+    writer = SummaryWriter(log_dir='./tensorboard')
 
     ## Initialise trainer and data loader
     trainLoader = get_data_loader(args.train_list, **vars(args));
@@ -197,17 +199,21 @@ def main_worker(gpu, ngpus_per_node, args):
         if it % args.test_interval == 0 and args.gpu == 0:
 
             ## Perform evaluation only in single GPU training
-            if not args.distributed:
+            if not args.distributed or True:
                 sc, lab, _ = trainer.evaluateFromList(**vars(args))
                 result = tuneThresholdfromScore(sc, lab, [1, 0.1]);
 
                 print("IT %d, VEER %2.4f"%(it, result[1]));
                 scorefile.write("IT %d, VEER %2.4f\n"%(it, result[1]));
 
+                writer.add_scalar("Test EER", result[1], it)
+
             trainer.saveParameters(args.model_save_path+"/model%09d.model"%it);
 
         print(time.strftime("%Y-%m-%d %H:%M:%S"), "TEER/TAcc %2.2f, TLOSS %f"%( traineer, loss));
         scorefile.write("IT %d, TEER/TAcc %2.2f, TLOSS %f\n"%(it, traineer, loss));
+        writer.add_scalar("TLOSS", loss, it)
+        writer.add_scalar("TAcc", traineer, it)
 
         scorefile.flush()
 
