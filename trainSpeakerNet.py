@@ -79,6 +79,9 @@ parser.add_argument('--port',           type=str,   default="8888", help='Port f
 parser.add_argument('--distributed',    dest='distributed', action='store_true', help='Enable distributed training')
 parser.add_argument('--mixedprec',      dest='mixedprec',   action='store_true', help='Enable mixed precision training')
 
+## Added by rvirgilli
+
+
 args = parser.parse_args();
 
 ## Parse YAML
@@ -159,7 +162,7 @@ def main_worker(gpu, ngpus_per_node, args):
         print('Total parameters: ',pytorch_total_params)
         print('Test list',args.test_list)
 
-        assert args.distributed == False
+        #assert args.distributed == False
             
         sc, lab, _ = trainer.evaluateFromList(**vars(args))
         result = tuneThresholdfromScore(sc, lab, [1, 0.1]);
@@ -172,6 +175,9 @@ def main_worker(gpu, ngpus_per_node, args):
         mindcf, threshold = ComputeMinDcf(fnrs, fprs, thresholds, p_target, c_miss, c_fa)
 
         print('EER %2.4f MinDCF %.5f'%(result[1],mindcf))
+
+        return result[1], mindcf, threshold
+
         quit();
 
     ## Save training code and params
@@ -199,7 +205,7 @@ def main_worker(gpu, ngpus_per_node, args):
         if it % args.test_interval == 0 and args.gpu == 0:
 
             ## Perform evaluation only in single GPU training
-            if not args.distributed or True:
+            if not args.distributed and False:
                 sc, lab, _ = trainer.evaluateFromList(**vars(args))
                 result = tuneThresholdfromScore(sc, lab, [1, 0.1]);
 
@@ -225,7 +231,10 @@ def main_worker(gpu, ngpus_per_node, args):
 # ## ===== ===== ===== ===== ===== ===== ===== =====
 
 
-def main():
+def main(_args=None):
+
+    if _args is not None:
+        args = _args
 
     args.model_save_path     = args.save_path+"/model"
     args.result_save_path    = args.save_path+"/result"
@@ -242,12 +251,12 @@ def main():
     print('Python Version:', sys.version)
     print('PyTorch Version:', torch.__version__)
     print('Number of GPUs:', torch.cuda.device_count())
-    print('Save path:',args.save_path)
+    print('Save path:', args.save_path)
 
-    if args.distributed:
+    if args.distributed and not args.eval:
         mp.spawn(main_worker, nprocs=n_gpus, args=(n_gpus, args))
     else:
-        main_worker(0, None, args)
+        return main_worker(0, None, args)
 
 
 if __name__ == '__main__':
