@@ -82,7 +82,7 @@ parser.add_argument('--mixedprec',      dest='mixedprec',   action='store_true',
 ## Added by rvirgilli
 
 
-args = parser.parse_args();
+args = parser.parse_args()
 
 ## Parse YAML
 def find_option_type(key, parser):
@@ -205,7 +205,7 @@ def main_worker(gpu, ngpus_per_node, args):
         if it % args.test_interval == 0 and args.gpu == 0:
 
             ## Perform evaluation only in single GPU training
-            if not args.distributed and False:
+            if not args.distributed:
                 sc, lab, _ = trainer.evaluateFromList(**vars(args))
                 result = tuneThresholdfromScore(sc, lab, [1, 0.1]);
 
@@ -235,6 +235,8 @@ def main(_args=None):
 
     if _args is not None:
         args = _args
+    else:
+        args = parser.parse_args()
 
     args.model_save_path     = args.save_path+"/model"
     args.result_save_path    = args.save_path+"/result"

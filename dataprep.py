@@ -122,8 +122,9 @@ def convert(args):
 
 	print('Converting files from AAC to WAV')
 	for fname in tqdm(files):
+		fname = fname.replace('\\', '/')
 		outfile = fname.replace('.m4a','.wav')
-		out = subprocess.call('ffmpeg -y -i %s -ac 1 -vn -acodec pcm_s16le -ar 16000 %s >/dev/null 2>/dev/null' %(fname,outfile), shell=True)
+		out = subprocess.call('ffmpeg -y -i %s -ac 1 -vn -acodec pcm_s16le -ar 16000 %s > NUL' %(fname,outfile), shell=True)
 		if out != 0:
 			raise ValueError('Conversion failed %s.'%fname)
 

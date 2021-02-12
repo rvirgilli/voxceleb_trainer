@@ -1,10 +1,13 @@
 import pickle, time, datetime, shutil, os
 from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 import trainSpeakerNet
+import numpy as np
 
 class Namespace:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
+
 
 space = {
     ## Data loader
@@ -51,7 +54,7 @@ space = {
     'n_mels': 40,
     'log_input': False,
     'model': '',
-    'encoder_type': '',
+    'encoder_type': 'SAP',
     'nOut': 512,
 
     ## For test only
@@ -59,7 +62,7 @@ space = {
 
     ## Distributed and mixed precision training
     'port': "8888",
-    'distributed': True,
+    'distributed': False,
     'mixedprec': False,
 }
 
@@ -67,16 +70,19 @@ space = {
 space['model'] = 'ResNetSE34L'
 space['log_input'] = True
 space['encoder_type'] = 'SAP'
-space['trainfunc'] = 'angleproto'
+space['nClasses'] = 1251
+space['trainfunc'] = 'amsoftmax'
 space['save_path'] = 'exps/temp'
-space['nPerSpeaker'] = 2
+space['scale'] = 30
+space['margin'] = 0.3
 space['batch_size'] = 200
-space['train_list'] = '../../datasets/train_list.txt'
-space['train_path'] = '/home/rvirgilli/datasets/vox1_dev_wav'
-space['test_interval'] = 200
-space['test_list'] = '/home/rvirgilli/datasets/veri_test.txt'
-space['test_path'] = '/home/rvirgilli/datasets/vox1_test/wav'
-space['max_epoch'] = 2
+space['train_list'] = 'D:/datasets/vox1_dev/train_list_vox1.txt'
+space['train_path'] = 'E:/datasets/vox1_dev/wav'
+space['test_interval'] = 1
+space['test_list'] = 'E:/datasets/vox1_test/veri_test.txt'
+space['test_path'] = 'E:/datasets/vox1_test/wav'
+space['max_epoch'] = 1
+space['nPerSpeaker'] = 1
 
 #hyperopt parameters
 trials_file = "search-spect.hyperopt"
@@ -85,6 +91,29 @@ trained_models_folder = './trained_models/'
 
 if not os.path.exists(best_model_folder):
     os.makedirs(best_model_folder)
+
+def get_best_model(save_path):
+
+    score_lines = open(os.path.join(save_path, 'result', 'scores.txt'), mode='r').readlines()
+
+    array_it = []
+    array_eer = []
+    array_tacc = []
+    array_tloss = []
+
+    for i in range(0, len(score_lines), 2):
+        array_it.append(int(score_lines[i].split(',')[0].strip().split(' ')[1]))
+        array_eer.append(float(score_lines[i].split(',')[1].strip().split(' ')[1]))
+        array_tacc.append(float(score_lines[i + 1].split(',')[1].strip().split(' ')[1]))
+        array_tloss.append(float(score_lines[i + 1].split(',')[2].strip().split(' ')[1]))
+
+    arg_min_eer = np.array(array_eer).argmin()
+
+    it = array_it[arg_min_eer]
+
+    model_path = os.path.join(save_path, 'model', 'model%09d.model'%it)
+
+    return array_eer[arg_min_eer], array_tacc[arg_min_eer], array_tloss[arg_min_eer], model_path
 
 def search(space):
     #try:
@@ -102,15 +131,14 @@ def search(space):
     args = Namespace(**space)
     trainSpeakerNet.main(args)
 
-    #evaluate model
-    space['eval'] = True
-    args = Namespace(**space)
-    eer, mindcf, threshold = trainSpeakerNet.main(args)
+    eer, tacc, tloss, model_path = get_best_model(space['save_path'])
 
     result = {
-        "loss": eer,
-        "mindcf": mindcf,
-        "threshold": threshold,
+        'loss': eer,
+        'eer': eer,
+        'tacc': tacc,
+        'tloss': tloss,
+        'model_path': model_path,
         "status": STATUS_OK,
     }
 
@@ -145,8 +173,9 @@ def run_trials():
 
 
     if len(trials) - 1 == trials.best_trial['tid']:
-        newest_file = newest(os.path.join(space['save_path'], 'model'))
-        shutil.copy(src=newest_file, dst=trained_models_folder)
+        best_model_path = trials.trials[-1]['result']['model_path']
+        best_bkp = './best/best_model.model'
+        shutil.copy(src=best_model_path, dst=best_bkp)
         print('Best file copied.')
         #bot.send_message(chat_id=chat_id, text='Best: ' + str(trials.best_trial['result']['loss']))
 
