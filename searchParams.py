@@ -2,12 +2,11 @@ import pickle, time, datetime, shutil, os
 from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 import trainSpeakerNet
 import numpy as np
+import torch
 
 class Namespace:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-
-
 
 space = {
     ## Data loader
@@ -51,7 +50,6 @@ space = {
     'rir_path'  :'data/RIRS_NOISES/simulated_rirs',
 
     ## Model definition
-    'n_mels': 40,
     'log_input': False,
     'model': '',
     'encoder_type': 'SAP',
@@ -64,25 +62,49 @@ space = {
     'port': "8888",
     'distributed': False,
     'mixedprec': False,
+
+    #spectrogram parameters
+    'spec_params': hp.choice('spec_params', [{
+        'n_fft': 256,
+        'n_mels': hp.uniformint('n_mels_256', 3, 29),
+        'win_length': hp.uniformint('win_length_256', 129, 256),
+        'hop_length': hp.uniformint('hop_length_256', 64, 128)
+    },{
+        'n_fft': 512,
+        'n_mels': hp.uniformint('n_mels_512', 6, 58),
+        'win_length': hp.uniformint('win_length_512', 257, 512),
+        'hop_length': hp.uniformint('hop_length_512', 128, 256)
+    },{
+        'n_fft': 1024,
+        'n_mels': hp.uniformint('n_mels_1024', 11, 114),
+        'win_length': hp.uniformint('win_length_1024', 513, 1024),
+        'hop_length': hp.uniformint('hop_length_1024', 256, 512)
+    },{
+        'n_fft': 2048,
+        'n_mels': hp.uniformint('n_mels_2048', 22, 227),
+        'win_length': hp.uniformint('win_length_2048', 1025, 2048),
+        'hop_length': hp.uniformint('hop_length_2048', 512, 1028)
+    }]),
+    'window_fn': torch.hamming_window
 }
+
+home_path = '/home/rvirgilli/'
 
 #custom args
 space['model'] = 'ResNetSE34L'
 space['log_input'] = True
 space['encoder_type'] = 'SAP'
-space['nClasses'] = 1251
-space['trainfunc'] = 'amsoftmax'
+space['nClasses'] = 1211
+space['trainfunc'] = 'angleproto'
 space['save_path'] = 'exps/temp'
-space['scale'] = 30
-space['margin'] = 0.3
 space['batch_size'] = 200
-space['train_list'] = 'D:/datasets/vox1_dev/train_list_vox1.txt'
-space['train_path'] = 'E:/datasets/vox1_dev/wav'
+space['train_list'] = os.path.join(home_path, 'datasets/vox1_dev/train_list_vox1.txt')
+space['train_path'] = os.path.join(home_path, 'datasets/vox1_dev/wav')
 space['test_interval'] = 1
-space['test_list'] = 'E:/datasets/vox1_test/veri_test.txt'
-space['test_path'] = 'E:/datasets/vox1_test/wav'
+space['test_list'] = os.path.join(home_path, 'datasets/vox1_test/veri_test.txt')
+space['test_path'] = os.path.join(home_path, 'datasets/vox1_test/wav')
 space['max_epoch'] = 1
-space['nPerSpeaker'] = 1
+space['nPerSpeaker'] = 2
 
 #hyperopt parameters
 trials_file = "search-spect.hyperopt"
@@ -127,8 +149,16 @@ def search(space):
     if os.path.exists(space['save_path']):
         shutil.rmtree(space['save_path'])
 
+    #set spect params
+    space['n_fft'] = space['spec_params']['n_fft']
+    space['n_mels'] = space['spec_params']['n_mels']
+    space['win_length'] = space['spec_params']['win_length']
+    space['hop_length'] = space['spec_params']['hop_length']
+
     #train model during 100 epochs
+
     args = Namespace(**space)
+
     trainSpeakerNet.main(args)
 
     eer, tacc, tloss, model_path = get_best_model(space['save_path'])
