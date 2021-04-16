@@ -36,9 +36,13 @@ class SpeakerNet(nn.Module):
 
         self.nPerSpeaker = nPerSpeaker
 
+        self.gpu = kwargs['gpu']
+
+        print('Loaded SpeakerNet model on gpu {}'.format(self.gpu))
+
     def forward(self, data, label=None):
 
-        data    = data.reshape(-1,data.size()[-1]).cuda() 
+        data    = data.reshape(-1,data.size()[-1]).cuda(self.gpu)
         outp    = self.__S__.forward(data)
 
         if label == None:
@@ -138,7 +142,7 @@ class ModelTrainer(object):
     ## Evaluate from list
     ## ===== ===== ===== ===== ===== ===== ===== =====
 
-    def evaluateFromList(self, test_list, test_path, nDataLoaderThread, print_interval=100, num_eval=10, **kwargs):
+    def evaluateFromList(self, test_list, test_path, nDataLoaderThread, print_interval=100, num_eval=10, factor=0, **kwargs):
         
         self.__model__.eval();
         
@@ -157,7 +161,7 @@ class ModelTrainer(object):
         setfiles.sort()
 
         ## Define test data loader
-        test_dataset = test_dataset_loader(setfiles, test_path, num_eval=num_eval, **kwargs)
+        test_dataset = test_dataset_loader(setfiles, test_path, num_eval=num_eval, factor=factor,**kwargs)
         test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=1,
@@ -216,6 +220,45 @@ class ModelTrainer(object):
 
 
     ## ===== ===== ===== ===== ===== ===== ===== =====
+    ## Predict embeddings from list
+    ## ===== ===== ===== ===== ===== ===== ===== =====
+
+    def predict(self, pred_list, pred_path, nDataLoaderThread, print_interval=100, num_eval=10, factor=0, **kwargs):
+
+        self.__model__.eval();
+        feats = {}
+        tstart = time.time()
+
+        ## Read all lines
+        with open(pred_list) as f:
+            lines = f.readlines()
+
+        lines = [line.strip() for line in lines]
+
+        ## Define test data loader
+        pred_dataset = test_dataset_loader(lines, pred_path, num_eval=num_eval, factor=factor, **kwargs)
+        test_loader = torch.utils.data.DataLoader(
+            pred_dataset,
+            batch_size=1,
+            shuffle=False,
+            num_workers=nDataLoaderThread,
+            drop_last=False,
+        )
+
+        ## Extract features for every image
+        for idx, data in enumerate(test_loader):
+            inp1 = data[0][0].cuda()
+            ref_feat = self.__model__(inp1).detach().cpu()
+            feats[data[1][0]] = ref_feat
+            telapsed = time.time() - tstart
+
+            if idx % print_interval == 0:
+                sys.stdout.write("\rReading %d of %d: %.2f Hz, embedding size %d" % (
+                idx, len(lines), idx / telapsed, ref_feat.size()[1]));
+
+        return feats
+
+    ## ===== ===== ===== ===== ===== ===== ===== =====
     ## Save parameters
     ## ===== ===== ===== ===== ===== ===== ===== =====
 
@@ -223,15 +266,19 @@ class ModelTrainer(object):
         
         torch.save(self.__model__.module.state_dict(), path);
 
+    def saveModel(self, path):
+        torch.save(self.__model__.module, path)
+
+    def loadModel(self, path):
+        self.__model__.module = torch.load(path)
 
     ## ===== ===== ===== ===== ===== ===== ===== =====
     ## Load parameters
     ## ===== ===== ===== ===== ===== ===== ===== =====
 
     def loadParameters(self, path):
-
-        self_state = self.__model__.module.state_dict();
-        loaded_state = torch.load(path, map_location="cuda:%d"%self.gpu);
+        self_state = self.__model__.module.state_dict()
+        loaded_state = torch.load(path, map_location="cuda:%d"%self.gpu)
         for name, param in loaded_state.items():
             origname = name;
             if name not in self_state:

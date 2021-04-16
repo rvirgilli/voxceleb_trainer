@@ -144,12 +144,20 @@ def main_worker(gpu, ngpus_per_node, args):
     modelfiles.sort()
 
     if len(modelfiles) >= 1:
-        trainer.loadParameters(modelfiles[-1]);
-        print("Model %s loaded from previous state!"%modelfiles[-1]);
+        if modelfiles[-1].find('full') >= 0:
+            trainer.loadModel(modelfiles[-1])
+            print("Full Model %s loaded from previous state!" % modelfiles[-1]);
+        else:
+            trainer.loadParameters(modelfiles[-1]);
+            print("Model Parameters %s loaded from previous state!"%modelfiles[-1]);
         it = int(os.path.splitext(os.path.basename(modelfiles[-1]))[0][5:]) + 1
     elif(args.initial_model != ""):
-        trainer.loadParameters(args.initial_model);
-        print("Model %s loaded!"%args.initial_model);
+        if args.initial_model.find('full') >= 0:
+            trainer.loadModel(args.initial_model)
+            print("Full Model parameters %s loaded!"%args.initial_model)
+        else:
+            trainer.loadParameters(args.initial_model)
+            print("Model Parameters %s loaded!"%args.initial_model)
 
     for ii in range(1,it):
         trainer.__scheduler__.step()
@@ -174,7 +182,7 @@ def main_worker(gpu, ngpus_per_node, args):
         fnrs, fprs, thresholds = ComputeErrorRates(sc, lab)
         mindcf, threshold = ComputeMinDcf(fnrs, fprs, thresholds, p_target, c_miss, c_fa)
 
-        print('EER %2.4f MinDCF %.5f'%(result[1],mindcf))
+        print('EER %2.4f MinDCF %.5f Threshold %.5f'%(result[1],mindcf, threshold))
 
         return result[1], mindcf, threshold
 
@@ -214,7 +222,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
                 writer.add_scalar("Test EER", result[1], it)
 
-            trainer.saveParameters(args.model_save_path+"/model%09d.model"%it);
+            trainer.saveModel(args.model_save_path+"/model%09d.model"%it);
 
         print(time.strftime("%Y-%m-%d %H:%M:%S"), "TEER/TAcc %2.2f, TLOSS %f"%( traineer, loss));
         scorefile.write("IT %d, TEER/TAcc %2.2f, TLOSS %f\n"%(it, traineer, loss));

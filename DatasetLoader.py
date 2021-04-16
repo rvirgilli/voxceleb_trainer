@@ -21,7 +21,7 @@ def worker_init_fn(worker_id):
     numpy.random.seed(numpy.random.get_state()[1][0] + worker_id)
 
 
-def loadWAV(filename, max_frames, evalmode=True, num_eval=10):
+def loadWAV(filename, max_frames, evalmode=True, num_eval=10, factor=0):
 
     # Maximum audio length
     max_audio = max_frames * 160 + 240
@@ -30,6 +30,11 @@ def loadWAV(filename, max_frames, evalmode=True, num_eval=10):
     sample_rate, audio  = wavfile.read(filename)
 
     audiosize = audio.shape[0]
+
+    if factor > 0:
+        num_eval = int(round(max(factor, (audiosize / max_audio) * factor)))
+    elif factor == -1:
+        num_eval = math.ceil(audiosize / max_audio)
 
     if audiosize <= max_audio:
         shortage    = max_audio - audiosize + 1 
@@ -171,14 +176,16 @@ class voxceleb_loader(Dataset):
 
 
 class test_dataset_loader(Dataset):
-    def __init__(self, test_list, test_path, eval_frames, num_eval, **kwargs):
+    def __init__(self, test_list, test_path, eval_frames, num_eval, factor, **kwargs):
         self.max_frames = eval_frames;
         self.num_eval   = num_eval
         self.test_path  = test_path
         self.test_list  = test_list
+        self.factor = factor
 
     def __getitem__(self, index):
-        audio = loadWAV(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
+        audio = loadWAV(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True,
+                        num_eval=self.num_eval, factor=self.factor)
         return torch.FloatTensor(audio), self.test_list[index]
 
     def __len__(self):
