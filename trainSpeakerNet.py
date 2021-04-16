@@ -222,7 +222,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
                 writer.add_scalar("Test EER", result[1], it)
 
-            trainer.saveModel(args.model_save_path+"/model%09d.model"%it);
+            trainer.saveModel(args.model_save_path+"/model%09d.full_model"%it);
 
         print(time.strftime("%Y-%m-%d %H:%M:%S"), "TEER/TAcc %2.2f, TLOSS %f"%( traineer, loss));
         scorefile.write("IT %d, TEER/TAcc %2.2f, TLOSS %f\n"%(it, traineer, loss));
