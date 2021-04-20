@@ -8,7 +8,8 @@ import argparse
 from multiprocessing import Pool
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--path', type=str,   default='/home/rvirgilli/datasets/vox1_test_short/wav',    help='Dataset path to original dataset')
+parser.add_argument('--path', type=str,  help='Dataset path to original dataset')
+parser.add_argument('--seed', type=str, default=42, help='Dataset path to original dataset')
 args = parser.parse_args()
 
 dataset_path = args.path
@@ -22,6 +23,7 @@ for file_path in tqdm(glob.iglob(os.path.join(dataset_path, '**/*.wav'), recursi
 
     if duration > 6:
         n_seg = math.ceil((duration / 5 + duration / 3) / 2)
+        np.random.seed(args.seed)
         seg_durations = 2 * np.random.rand(n_seg) + 3
         overlap_time = (sum(seg_durations) - duration) / (n_seg - 1)
         start_frame = [0]
