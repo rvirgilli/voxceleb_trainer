@@ -4,12 +4,20 @@
 import torch
 import torchaudio
 import torch.nn as nn
+import numpy as np
 import torch.nn.functional as F
 from torch.nn import Parameter
 from models.ResNetBlocks import *
+import scipy.signal as scs
+
+
+def gaussian_window(window_nsamp):
+    window_sigma = (window_nsamp + 1) / 6
+    gss = scs.gaussian(window_nsamp, window_sigma)
+    return torch.from_numpy(gss)
 
 class ResNetSE(nn.Module):
-    def __init__(self, block, layers, num_filters, nOut, encoder_type='SAP', n_mels=40, n_fft=512, win_length=400,
+    def __init__(self, block, layers, num_filters, nOut, window_dur, encoder_type='SAP', n_mels=40, n_fft=512, win_length=400,
                  hop_length=160, window_fn=torch.hamming_window, log_input=True, **kwargs):
         super(ResNetSE, self).__init__()
 
@@ -34,6 +42,8 @@ class ResNetSE(nn.Module):
         self.torchfb        = torchaudio.transforms.MelSpectrogram(sample_rate=16000, n_fft=n_fft, win_length=win_length,
                                                                    hop_length=hop_length, window_fn=window_fn, n_mels=n_mels)
 
+        self.spect_layer = self.spectrogram_layer(window_dur, 16000, n_mels)
+
         if self.encoder_type == "SAP":
             self.sap_linear = nn.Linear(num_filters[3] * block.expansion, num_filters[3] * block.expansion)
             self.attention = self.new_parameter(num_filters[3] * block.expansion, 1)
@@ -53,6 +63,19 @@ class ResNetSE(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+
+
+    def spectrogram_layer(self, window_dur, sample_rate, n_mels):
+        fs = sample_rate
+        step_dur = window_dur / np.sqrt(np.pi) / 8.
+        window_nsamp = int(window_dur * fs * 2)
+        step_nsamp = int(step_dur * fs)
+        spect = torchaudio.transforms.Spectrogram(n_fft=window_nsamp, hop_length=step_nsamp,
+                                                         window_fn=gaussian_window,
+                                                         normalized=False).float()
+        mel_scale = torchaudio.transforms.MelScale(n_mels, sample_rate, 0, None, window_nsamp // 2 + 1, None)
+
+        return nn.Sequential(spect, mel_scale)
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
@@ -80,7 +103,8 @@ class ResNetSE(nn.Module):
 
         with torch.no_grad():
             with torch.cuda.amp.autocast(enabled=False):
-                x = self.torchfb(x)+1e-6
+                #x = self.torchfb(x)+1e-6
+                x = self.spect_layer(x) + 1e-6
                 if self.log_input: x = x.log()
                 x = self.instancenorm(x).unsqueeze(1).detach()
 

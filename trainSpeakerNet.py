@@ -66,6 +66,7 @@ parser.add_argument('--rir_path',       type=str,   default="data/RIRS_NOISES/si
 
 ## Model definition
 parser.add_argument('--n_mels',         type=int,   default=40,     help='Number of mel filterbanks');
+parser.add_argument('--window_dur',     type=float,  default=0.030,     help='Window duration');
 parser.add_argument('--log_input',      type=bool,  default=False,  help='Log input features')
 parser.add_argument('--model',          type=str,   default="",     help='Name of model definition');
 parser.add_argument('--encoder_type',   type=str,   default="SAP",  help='Type of encoder');
