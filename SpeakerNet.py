@@ -142,7 +142,7 @@ class ModelTrainer(object):
     ## Evaluate from list
     ## ===== ===== ===== ===== ===== ===== ===== =====
 
-    def evaluateFromList(self, test_list, test_path, nDataLoaderThread, print_interval=100, num_eval=10, factor=0, **kwargs):
+    def evaluateFromList(self, test_list, test_path, nDataLoaderThread, embs_save, print_interval=100, num_eval=10, factor=0, **kwargs):
         
         self.__model__.eval();
         
@@ -179,6 +179,8 @@ class ModelTrainer(object):
 
             if idx % print_interval == 0:
                 sys.stdout.write("\rReading %d of %d: %.2f Hz, embedding size %d"%(idx,len(setfiles),idx/telapsed,ref_feat.size()[1]));
+
+        torch.save(feats, embs_save)
 
         print('')
         all_scores = [];

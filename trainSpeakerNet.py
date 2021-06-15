@@ -55,6 +55,7 @@ parser.add_argument('--nClasses',       type=int,   default=5994,   help='Number
 ## Load and save
 parser.add_argument('--initial_model',  type=str,   default="",     help='Initial model weights');
 parser.add_argument('--save_path',      type=str,   default="exps/exp1", help='Path for model and logs');
+parser.add_argument('--embs_save', type=str,   default="ref_feat.pickle", help='file name for saving the calculated embeddings');
 
 ## Training and test data
 parser.add_argument('--train_list',     type=str,   default="data/train_list.txt",  help='Train list');
